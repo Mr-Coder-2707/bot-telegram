@@ -4,6 +4,8 @@ from pytube import YouTube
 from pytube.exceptions import PytubeError
 import yt_dlp
 
+from .utils import get_ytdlp_opts
+
 logger = logging.getLogger(__name__)
 
 def download_youtube_video(url, output_path="downloads", progress_callback=None):
@@ -49,13 +51,12 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
                     if total:
                         progress_callback(downloaded, total)
 
-        ydl_opts = {
+        ydl_opts = get_ytdlp_opts({
             'format': 'best[ext=mp4]/best',
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-            'quiet': True,
-            'no_warnings': True,
             'progress_hooks': [ytdlp_progress],
-        }
+        })
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
@@ -63,4 +64,7 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
             return filename
     except Exception as e:
         logger.error(f"yt-dlp failed: {e}")
-        raise Exception("Failed to download video using both pytube and yt-dlp.")
+        err_msg = str(e).lower()
+        if "sign in to confirm" in err_msg or "bot" in err_msg:
+            raise Exception("YouTube is asking for verification. Please add your cookies.txt file to bypass this.")
+        raise Exception(f"Failed to download YouTube video: {str(e)}")

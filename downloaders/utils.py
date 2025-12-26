@@ -31,3 +31,26 @@ def cleanup_file(file_path):
                     logger.info(f"Deleted empty directory: {parent_dir}")
     except OSError as e:
         logger.error(f"Error deleting file or directory {file_path}: {e}")
+
+def get_ytdlp_opts(extra_opts=None):
+    """
+    Returns a base set of yt-dlp options with realistic User-Agent 
+    and cookies support if cookies.txt exists.
+    """
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookies_path = os.path.join(base_dir, "cookies.txt")
+    
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    }
+    
+    if os.path.exists(cookies_path):
+        opts['cookiefile'] = cookies_path
+        logger.info(f"Using cookies from: {cookies_path}")
+    
+    if extra_opts:
+        opts.update(extra_opts)
+        
+    return opts

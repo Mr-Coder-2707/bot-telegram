@@ -5,6 +5,8 @@ import glob
 import yt_dlp
 import time
 
+from .utils import get_ytdlp_opts
+
 logger = logging.getLogger(__name__)
 
 def download_instagram_content(url, output_path="downloads"):
@@ -26,7 +28,8 @@ def download_instagram_content(url, output_path="downloads"):
             download_comments=False,
             save_metadata=False,
             compress_json=False,
-            quiet=True
+            quiet=True,
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         )
 
         # Extract shortcode from URL
@@ -75,12 +78,10 @@ def download_instagram_content(url, output_path="downloads"):
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
-        ydl_opts = {
+        ydl_opts = get_ytdlp_opts({
             'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
-            'quiet': True,
-            'no_warnings': True,
-        }
+        })
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -102,6 +103,7 @@ def download_instagram_content(url, output_path="downloads"):
     except Exception as e:
         logger.error(f"Both Instaloader and yt-dlp failed for Instagram: {e}")
         # If it's a "Wait a few minutes" error, re-raise with a friendlier message
-        if "wait a few minutes" in str(e).lower() or "401" in str(e):
-            raise Exception("Instagram has temporarily blocked requests. Please try again in 5-10 minutes.")
+        err_msg = str(e).lower()
+        if "wait a few minutes" in err_msg or "401" in err_msg or "429" in err_msg:
+            raise Exception("Instagram has temporarily blocked requests. Please try again in 5-10 minutes or check your cookies.txt")
         raise Exception(f"Failed to download Instagram content: {str(e)}")
