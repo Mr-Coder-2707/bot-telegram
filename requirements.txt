@@ -1,0 +1,12 @@
+python-telegram-bot==22.*
+pytube
+instaloader
+yt-dlp
+requests
+python-dotenv
+aiofiles
+pydub
+Pillow
+moviepy
+
+
