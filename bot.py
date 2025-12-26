@@ -21,7 +21,8 @@ from downloaders import (
 )
 
 # Load environment variables
-load_dotenv()
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 TOKEN = os.getenv("BOT_TOKEN")
 WATERMARK_ENABLED = os.getenv("WATERMARK_ENABLED", "False").lower() == "true"
 WATERMARK_TEXT = os.getenv("WATERMARK_TEXT", "@your_channel_name")

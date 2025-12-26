@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# Downloads
+downloads/
+*.mp4
+*.mp3
+*.jpg
+*.png
+*.m4a
+
+# Logs
+error_log.txt
+*.log
+
+# VS Code
+.vscode/
