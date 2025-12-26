@@ -17,6 +17,9 @@ def download_instagram_content(url, output_path="downloads"):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookies_path = os.path.join(base_dir, "cookies.txt")
+
     # Try Instaloader first
     try:
         logger.info(f"Attempting Instagram download with Instaloader: {url}")
@@ -31,6 +34,14 @@ def download_instagram_content(url, output_path="downloads"):
             quiet=True,
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         )
+
+        # Load cookies if available
+        if os.path.exists(cookies_path):
+            try:
+                L.context.load_cookies_from_file(cookies_path)
+                logger.info("Instaloader: Loaded cookies from cookies.txt")
+            except Exception as ce:
+                logger.warning(f"Instaloader: Failed to load cookies: {ce}")
 
         # Extract shortcode from URL
         if "/p/" in url:
@@ -78,9 +89,12 @@ def download_instagram_content(url, output_path="downloads"):
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
+        # Use 'best' instead of 'bestvideo+bestaudio' to handle images/carousels 
+        # that might not have a "video format" in the traditional sense
         ydl_opts = get_ytdlp_opts({
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'best', 
             'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
+            'allow_playlist': True,
         })
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -98,12 +112,20 @@ def download_instagram_content(url, output_path="downloads"):
                 logger.info(f"yt-dlp download success: {media_files}")
                 return media_files
             else:
+                # One last attempt to find ANY file in the temp_dir if filenames don't match exactly
+                for ext in ['*.jpg', '*.mp4', '*.png', '*.jpeg']:
+                    media_files.extend(glob.glob(os.path.join(temp_dir, ext)))
+                
+                if media_files:
+                    return list(set(media_files)) # deduplicate
+                
                 raise Exception("yt-dlp finished but no files were found.")
 
     except Exception as e:
         logger.error(f"Both Instaloader and yt-dlp failed for Instagram: {e}")
-        # If it's a "Wait a few minutes" error, re-raise with a friendlier message
         err_msg = str(e).lower()
+        if "no video formats found" in err_msg:
+             raise Exception("هذا المنشور لا يحتوي على فيديو (ربما صور فقط). جاري العمل على تحسين دعم الصور.")
         if "wait a few minutes" in err_msg or "401" in err_msg or "429" in err_msg:
             raise Exception("Instagram has temporarily blocked requests. Please try again in 5-10 minutes or check your cookies.txt")
         raise Exception(f"Failed to download Instagram content: {str(e)}")
