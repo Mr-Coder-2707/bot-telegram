@@ -22,3 +22,8 @@ error_log.txt
 
 # VS Code
 .vscode/
+
+# Credentials & Auth
+cookies.txt
+auth/
+*.txt.bak
