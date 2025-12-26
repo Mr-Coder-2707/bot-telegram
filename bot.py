@@ -7,6 +7,8 @@ from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters, Application
 from dotenv import load_dotenv
 
+# تعطيل رسائل السجلات الخاصة بمكتبة الاتصال httpx
+logging.getLogger("httpx").setLevel(logging.WARNING)
 # Import downloaders
 from downloaders import (
     download_youtube_video,
