@@ -32,7 +32,7 @@ def download_instagram_content(url, output_path="downloads"):
             save_metadata=False,
             compress_json=False,
             quiet=True,
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
         )
 
         # Load cookies if available
@@ -53,6 +53,10 @@ def download_instagram_content(url, output_path="downloads"):
         else:
             raise ValueError("Invalid Instagram URL format for Instaloader")
 
+        # Add Referer header to reduce 401/429 errors
+        L.context._session.headers.update({
+            "Referer": "https://www.instagram.com/",
+        })
         post = instaloader.Post.from_shortcode(L.context, shortcode)
         
         target_dir = os.path.join(output_path, shortcode)
@@ -92,9 +96,18 @@ def download_instagram_content(url, output_path="downloads"):
         # Use 'best' instead of 'bestvideo+bestaudio' to handle images/carousels 
         # that might not have a "video format" in the traditional sense
         ydl_opts = get_ytdlp_opts({
-            'format': 'best', 
-            'outtmpl': os.path.join(temp_dir, '%(title)s.%(ext)s'),
-            'allow_playlist': True,
+            'format': 'best',
+            'outtmpl': os.path.join(temp_dir, '%(id)s.%(ext)s'),
+            'noplaylist': False,
+            'merge_output_format': 'mp4',
+            'cookiefile': cookies_path,  # Critical for Brave + Python 3.13 DPAPI compatibility
+            'http_headers': {
+                'User-Agent': (
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) '
+                    'Chrome/135.0.0.0 Safari/537.36'
+                )
+            },
         })
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
