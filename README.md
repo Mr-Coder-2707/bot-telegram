@@ -2,6 +2,18 @@
 
 # Media Downloader Bot User Guide
 
+---
+
+## 🚄 النشر على Railway (مهم) | Deploy on Railway (Important)
+
+- اربط مشروع Railway بهذا الريبو (GitHub) على فرع `main`.
+- هذا المشروع ليس Web Server (لا يفتح `PORT`)؛ الأفضل تشغيله كـ Worker.
+- تم إضافة ملف `nixpacks.toml` لتحديد أمر التشغيل تلقائيًا: `python bot.py`.
+- لازم تضيف متغيرات البيئة في Railway (Variables) لأن ملف `.env` متجاهَل ولا يُرفع:
+   - `BOT_TOKEN` (إجباري)
+   - `WATERMARK_ENABLED` (اختياري: `true`/`false`)
+   - `WATERMARK_TEXT` (اختياري)
+
 ## 🤖 نظرة عامة | Overview
 
 بوت تلجرام متقدم لتحميل المحتوى من منصات التواصل الاجتماعي المختلفة.
