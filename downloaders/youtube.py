@@ -51,69 +51,17 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
                     if total:
                         progress_callback(downloaded, total)
 
-        requested_format = os.getenv('YTDLP_FORMAT', 'best/bestvideo+bestaudio/best')
-        merge_format = os.getenv('YTDLP_MERGE_FORMAT', 'mp4')
-
-        def _run_download(fmt: str, ignoreerrors: bool = True):
-            ydl_opts = get_ytdlp_opts({
-                'format': fmt,
-                'merge_output_format': merge_format,
-                'ignoreerrors': ignoreerrors,
-                'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-                'progress_hooks': [ytdlp_progress],
-            })
-            logger.info(
-                f"yt-dlp format selected: {ydl_opts.get('format')} | merge_output_format: {ydl_opts.get('merge_output_format')} | ignoreerrors: {ignoreerrors}"
-            )
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if not info:
-                    return None
-                filename = ydl.prepare_filename(info)
-                if not filename or not os.path.exists(filename):
-                    return None
-                logger.info(f"yt-dlp download success: {filename}")
-                return filename
-
-        # Try a sequence of fallback formats
-        fallback_formats = [
-            requested_format,
-            'bv*+ba/b',
-            'bestvideo+bestaudio',
-            'best',
-            'best[ext=mp4]',
-            'best[ext=webm]'
-        ]
-        tried = set()
-        for fmt in fallback_formats:
-            if fmt in tried:
-                continue
-            tried.add(fmt)
-            filename = _run_download(fmt, ignoreerrors=True)
-            if filename:
-                return filename
-            # Try strict mode as last resort for this format
-            filename = _run_download(fmt, ignoreerrors=False)
-            if filename:
-                return filename
-
-        raise Exception(
-            "yt-dlp could not download the video with any known format.\n"
-            "جرب رابط آخر أو استخدم yt-dlp -F لرؤية الصيغ المتاحة بنفسك.\n"
-            "If the problem persists, the video may be private, deleted, or region-locked."
-        )
-
-        try:
-            return _run_download(requested_format)
-        except Exception as e:
-            err_msg = str(e).lower()
-            # If a strict format was requested (via env or default) and is unavailable, fallback to best.
-            if "requested format is not available" in err_msg:
-                logger.warning(
-                    f"Requested format not available ({requested_format}). Falling back to format=best"
-                )
-                return _run_download('best')
-            raise
+        ydl_opts = get_ytdlp_opts({
+            'format': 'best[ext=mp4]/best',
+            'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+            'progress_hooks': [ytdlp_progress],
+        })
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            logger.info(f"yt-dlp download success: {filename}")
+            return filename
     except Exception as e:
         logger.error(f"yt-dlp failed: {e}")
         err_msg = str(e).lower()

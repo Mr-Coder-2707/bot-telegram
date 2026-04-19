@@ -1,6 +1,5 @@
 import os
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,27 +35,21 @@ def cleanup_file(file_path):
 def get_ytdlp_opts(extra_opts=None):
     """
     Returns a base set of yt-dlp options with realistic User-Agent 
-    and cookies support.
-
-    Cookies precedence:
-    1) COOKIES_TXT env var (content or a file path)
-    2) cookies.txt in repository root (if exists)
+    and cookies support if cookies.txt exists.
     """
-
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    cookies_path = _resolve_cookiefile(base_dir)
+    cookies_path = os.path.join(base_dir, "cookies.txt")
     
     opts = {
         'quiet': True,
         'no_warnings': True,
-        'noplaylist': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
         },
     }
     
-    if cookies_path:
+    if os.path.exists(cookies_path):
         opts['cookiefile'] = cookies_path
         logger.info(f"Using cookies from: {cookies_path}")
     
@@ -64,42 +57,3 @@ def get_ytdlp_opts(extra_opts=None):
         opts.update(extra_opts)
         
     return opts
-
-
-def _resolve_cookiefile(base_dir: str) -> Optional[str]:
-    """Return a cookiefile path if available.
-
-    - If COOKIES_TXT is set:
-      - If it points to an existing file, use that path.
-      - Otherwise, treat it as file contents and write to <base_dir>/cookies.txt.
-    - Else, use <base_dir>/cookies.txt if present.
-    """
-
-    env_value = os.getenv("COOKIES_TXT")
-    if env_value is not None:
-        env_value = env_value.strip()
-
-    if env_value:
-        # If user provided a path, use it.
-        if os.path.exists(env_value):
-            return os.path.abspath(env_value)
-
-        # Otherwise treat it as content.
-        target_path = os.path.join(base_dir, "cookies.txt")
-        try:
-            # Ensure trailing newline for Netscape cookie format
-            content = env_value
-            if not content.endswith("\n"):
-                content += "\n"
-            with open(target_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            return target_path
-        except OSError as e:
-            logger.warning(f"Failed to write cookies.txt from COOKIES_TXT: {e}")
-
-    # Fallback to existing cookies.txt in repo root
-    fallback_path = os.path.join(base_dir, "cookies.txt")
-    if os.path.exists(fallback_path):
-        return fallback_path
-
-    return None
