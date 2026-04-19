@@ -68,29 +68,40 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 if not info:
-                    if ignoreerrors:
-                        logger.warning("yt-dlp did not return video info (possibly ignored an error). Retrying with strict mode (ignoreerrors=False, format=best)...")
-                        # Try strict mode as a last resort
-                        ydl_opts['format'] = 'best'
-                        ydl_opts['ignoreerrors'] = False
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                            info2 = ydl2.extract_info(url, download=True)
-                            if not info2:
-                                raise Exception("yt-dlp could not download the video.\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.\nIf the problem persists, the video may be private, deleted, or region-locked.")
-                            filename2 = ydl2.prepare_filename(info2)
-                            if not filename2 or not os.path.exists(filename2):
-                                raise Exception("Download did not produce an output file (strict mode).\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.")
-                            logger.info(f"yt-dlp download success (strict fallback): {filename2}")
-                            return filename2
-                    else:
-                        raise Exception("yt-dlp did not return video info (strict mode).\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.")
-
+                    return None
                 filename = ydl.prepare_filename(info)
                 if not filename or not os.path.exists(filename):
-                    raise Exception("Download did not produce an output file.")
-
+                    return None
                 logger.info(f"yt-dlp download success: {filename}")
                 return filename
+
+        # Try a sequence of fallback formats
+        fallback_formats = [
+            requested_format,
+            'bv*+ba/b',
+            'bestvideo+bestaudio',
+            'best',
+            'best[ext=mp4]',
+            'best[ext=webm]'
+        ]
+        tried = set()
+        for fmt in fallback_formats:
+            if fmt in tried:
+                continue
+            tried.add(fmt)
+            filename = _run_download(fmt, ignoreerrors=True)
+            if filename:
+                return filename
+            # Try strict mode as last resort for this format
+            filename = _run_download(fmt, ignoreerrors=False)
+            if filename:
+                return filename
+
+        raise Exception(
+            "yt-dlp could not download the video with any known format.\n"
+            "جرب رابط آخر أو استخدم yt-dlp -F لرؤية الصيغ المتاحة بنفسك.\n"
+            "If the problem persists, the video may be private, deleted, or region-locked."
+        )
 
         try:
             return _run_download(requested_format)
