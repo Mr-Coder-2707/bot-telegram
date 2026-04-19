@@ -51,21 +51,29 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
                     if total:
                         progress_callback(downloaded, total)
 
-        requested_format = os.getenv('YTDLP_FORMAT', 'bv*+ba/b')
+        requested_format = os.getenv('YTDLP_FORMAT', 'best/bestvideo+bestaudio/best')
         merge_format = os.getenv('YTDLP_MERGE_FORMAT', 'mp4')
 
         def _run_download(fmt: str):
             ydl_opts = get_ytdlp_opts({
-                # Production-friendly defaults (overridable via env)
-                'format': 'best',
-                'merge_output_format': 'mp4',
+                'format': fmt,
+                'merge_output_format': merge_format,
+                'ignoreerrors': True,
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [ytdlp_progress],
             })
-            logger.info(f"yt-dlp format selected: {ydl_opts.get('format')}")
+            logger.info(
+                f"yt-dlp format selected: {ydl_opts.get('format')} | merge_output_format: {ydl_opts.get('merge_output_format')}"
+            )
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
+                if not info:
+                    raise Exception("yt-dlp did not return video info (possibly ignored an error).")
+
                 filename = ydl.prepare_filename(info)
+                if not filename or not os.path.exists(filename):
+                    raise Exception("Download did not produce an output file.")
+
                 logger.info(f"yt-dlp download success: {filename}")
                 return filename
 
