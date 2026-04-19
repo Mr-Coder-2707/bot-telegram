@@ -15,7 +15,7 @@
    - `WATERMARK_ENABLED` (اختياري: `true`/`false`)
    - `WATERMARK_TEXT` (اختياري)
    - `MAX_CONCURRENT_DOWNLOADS` (اختياري) — افتراضي `2` لتقليل الضغط ومنع التهنيج
-   - `YTDLP_FORMAT` (اختياري) — افتراضي `bestvideo*+bestaudio/best`
+   - `YTDLP_FORMAT` (اختياري) — افتراضي `bv*+ba/b`
    - `YTDLP_MERGE_FORMAT` (اختياري) — افتراضي `mp4`
 
 ## 🤖 نظرة عامة | Overview

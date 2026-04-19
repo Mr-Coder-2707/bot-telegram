@@ -25,7 +25,7 @@ def download_tiktok_video(url, output_path="downloads", progress_callback=None):
                     progress_callback(downloaded, total)
 
     ydl_opts = get_ytdlp_opts({
-        'format': os.getenv('YTDLP_FORMAT', 'bestvideo*+bestaudio/best'),
+        'format': os.getenv('YTDLP_FORMAT', 'bv*+ba/b'),
         'merge_output_format': os.getenv('YTDLP_MERGE_FORMAT', 'mp4'),
         'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
         'progress_hooks': [ytdlp_progress],
