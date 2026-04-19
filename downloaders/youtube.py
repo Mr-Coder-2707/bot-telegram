@@ -57,8 +57,8 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
         def _run_download(fmt: str):
             ydl_opts = get_ytdlp_opts({
                 # Production-friendly defaults (overridable via env)
-                'format': fmt,
-                'merge_output_format': merge_format,
+                'format': 'best',
+                'merge_output_format': 'mp4',
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [ytdlp_progress],
             })
