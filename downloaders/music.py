@@ -6,6 +6,8 @@ from typing import Dict, Tuple, Optional
 import yt_dlp
 from pathlib import Path
 
+from .utils import get_ytdlp_opts
+
 logger = logging.getLogger(__name__)
 
 def download_music(url: str, output_path: str = "downloads", progress_callback=None) -> Tuple[str, Dict]:
@@ -31,7 +33,7 @@ def download_music(url: str, output_path: str = "downloads", progress_callback=N
                     progress_callback(100, 100)
 
         # Extract metadata and download audio
-        ydl_opts = {
+        ydl_opts = get_ytdlp_opts({
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'postprocessors': [
                 {
@@ -41,12 +43,10 @@ def download_music(url: str, output_path: str = "downloads", progress_callback=N
                 }
             ],
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-            'quiet': False,
-            'no_warnings': False,
             'progress_hooks': [progress_hook],
             'extract_flat': False,
             'no_color': True,
-        }
+        })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             logger.info("Extracting metadata...")

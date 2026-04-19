@@ -2,6 +2,8 @@ import logging
 import os
 import yt_dlp
 
+from .utils import get_ytdlp_opts
+
 logger = logging.getLogger(__name__)
 
 def download_tiktok_video(url, output_path="downloads", progress_callback=None):
@@ -22,15 +24,12 @@ def download_tiktok_video(url, output_path="downloads", progress_callback=None):
                 if total:
                     progress_callback(downloaded, total)
 
-    ydl_opts = {
-        'format': 'best[ext=mp4]/best',
+    ydl_opts = get_ytdlp_opts({
+        'format': os.getenv('YTDLP_FORMAT', 'best'),
+        'merge_output_format': os.getenv('YTDLP_MERGE_FORMAT', 'mp4'),
         'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-        'quiet': True,
-        'no_warnings': True,
         'progress_hooks': [ytdlp_progress],
-        # Add user agent to avoid bot detection
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    }
+    })
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

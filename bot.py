@@ -40,6 +40,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Performance guardrail: limit concurrent downloads to avoid hanging under load
+try:
+    MAX_CONCURRENT_DOWNLOADS = max(1, int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "2")))
+except Exception:
+    MAX_CONCURRENT_DOWNLOADS = 2
+
+DOWNLOAD_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+
+
 def build_buttons(media_list: list[InstagramMedia]) -> InlineKeyboardMarkup:
     """Builds an inline keyboard with one button per media item."""
     keyboard: list[list[InlineKeyboardButton]] = []
@@ -431,10 +440,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming messages and routes to appropriate downloader."""
-    url = update.message.text.strip()
+    url = (update.message.text or "").strip()
+    url_lc = url.lower()
     
     if not url.startswith(("http://", "https://")):
-        await update.message.reply_text("❌ Please send a valid URL starting with http:// or https://")
+        await update.message.reply_text(
+            "❌ أرسل رابط صحيح يبدأ بـ http:// أو https://\n"
+            "❌ Please send a valid URL starting with http:// or https://"
+        )
+        return
+
+    # Block unsupported TikTok photo posts early
+    if "tiktok.com" in url_lc and "/photo/" in url_lc:
+        await update.message.reply_text(
+            "❌ النوع ده (TikTok photo) مش مدعوم حاليًا.\n"
+            "❌ TikTok photo posts are not supported right now."
+        )
         return
 
     status_msg = await update.message.reply_text("⏳ جاري معالجة الرابط... | Processing your link...")
@@ -470,104 +491,115 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass # Ignore errors if message is not modified or network issues
 
     try:
-        files_to_send = []
-        
-        # Route based on URL domain
-        if "youtube.com" in url or "youtu.be" in url:
-            await status_msg.edit_text("⬇️ جاري التحميل من YouTube... | Downloading from YouTube...")
-            file_path = await asyncio.to_thread(download_youtube_video, url, "downloads", progress_callback)
-            files_to_send.append(file_path)
-            
-        elif "instagram.com" in url:
-            await status_msg.edit_text("🔎 جاري جلب بيانات المنشور من Instagram... | Fetching Instagram post info...")
-            media_list = await asyncio.to_thread(get_post_media, url)
+        # If the bot is under load, user gets a friendly queue message
+        if DOWNLOAD_SEMAPHORE.locked():
+            try:
+                await status_msg.edit_text("⏳ في انتظار دورك... | Waiting in queue...")
+            except Exception:
+                pass
 
-            if not media_list:
-                raise Exception("Empty media list")
+        async with DOWNLOAD_SEMAPHORE:
+            files_to_send = []
 
-            # Carousel: show buttons; Non-carousel: send immediately.
-            if len(media_list) == 1:
+            # Route based on URL domain
+            if "youtube.com" in url_lc or "youtu.be" in url_lc:
+                await status_msg.edit_text("⬇️ جاري التحميل من YouTube... | Downloading from YouTube...")
+                file_path = await asyncio.to_thread(download_youtube_video, url, "downloads", progress_callback)
+                files_to_send.append(file_path)
+
+            elif "instagram.com" in url_lc:
+                await status_msg.edit_text("🔎 جاري جلب بيانات المنشور من Instagram... | Fetching Instagram post info...")
+                media_list = await asyncio.to_thread(get_post_media, url)
+
+                if not media_list:
+                    raise Exception("Empty media list")
+
+                # Carousel: show buttons; Non-carousel: send immediately.
+                if len(media_list) == 1:
+                    await status_msg.delete()
+                    await _send_instagram_media(update.message, media_list[0])
+                    return
+
+                context.user_data["ig_media_list"] = media_list
                 await status_msg.delete()
-                await _send_instagram_media(update.message, media_list[0])
+                await update.message.reply_text(
+                    "Choose an image number:",
+                    reply_markup=build_buttons(media_list),
+                )
                 return
 
-            context.user_data["ig_media_list"] = media_list
-            await status_msg.delete()
-            await update.message.reply_text(
-                "Choose an image number:",
-                reply_markup=build_buttons(media_list),
-            )
-            return
-            
-        elif "twitter.com" in url or "x.com" in url:
-            # await status_msg.edit_text("📥 Downloading from Twitter/X...")
-            file_path = await asyncio.to_thread(download_twitter_video, url, "downloads", progress_callback)
-            files_to_send.append(file_path)
-            
-        elif "facebook.com" in url or "fb.watch" in url:
-            # await status_msg.edit_text("📥 Downloading from Facebook...")
-            file_path = await asyncio.to_thread(download_facebook_video, url, "downloads", progress_callback)
-            files_to_send.append(file_path)
+            elif "twitter.com" in url_lc or "x.com" in url_lc:
+                await status_msg.edit_text("⬇️ جاري التحميل من Twitter/X... | Downloading from Twitter/X...")
+                file_path = await asyncio.to_thread(download_twitter_video, url, "downloads", progress_callback)
+                files_to_send.append(file_path)
 
-        elif is_tiktok_url(url):
-            await status_msg.edit_text("⬇️ جاري التحميل من TikTok... | Downloading from TikTok...")
-            file_path = await asyncio.to_thread(download_tiktok_video, url, "downloads", progress_callback)
-            files_to_send.append(file_path)
-            
-        else:
-            await status_msg.edit_text("❌ رابط غير مدعوم. أدعم YouTube, Instagram, Twitter, Facebook, و TikTok.\n❌ Unsupported URL. I support YouTube, Instagram, Twitter, Facebook, and TikTok.")
-            return
+            elif "facebook.com" in url_lc or "fb.watch" in url_lc:
+                await status_msg.edit_text("⬇️ جاري التحميل من Facebook... | Downloading from Facebook...")
+                file_path = await asyncio.to_thread(download_facebook_video, url, "downloads", progress_callback)
+                files_to_send.append(file_path)
 
-        # Send files
-        await status_msg.edit_text("⬆️ جاري رفع الملف... | Uploading media...")
-        
-        for file_path in files_to_send:
-            original_path = file_path
-            final_path = original_path
+            elif is_tiktok_url(url_lc):
+                await status_msg.edit_text("⬇️ جاري التحميل من TikTok... | Downloading from TikTok...")
+                file_path = await asyncio.to_thread(download_tiktok_video, url, "downloads", progress_callback)
+                files_to_send.append(file_path)
 
-            if WATERMARK_ENABLED:
-                try:
-                    from watermark import apply_watermark
-                    await status_msg.edit_text("🖼️ Adding watermark...")
-                    watermarked_path = await apply_watermark(original_path, WATERMARK_TEXT)
-                    if watermarked_path and os.path.exists(watermarked_path):
-                        final_path = watermarked_path
-                    else:
-                        logger.warning(f"Watermarking failed for {original_path}. Sending original file.")
-                except ImportError:
-                    logger.warning("Watermark module not available. Install moviepy to enable watermarks.")
-                except Exception as e:
-                    logger.warning(f"Watermarking failed: {e}. Sending original file.")
-
-            is_valid, size = check_file_size(final_path)
-            if is_valid:
-                try:
-                    if final_path.endswith(('.jpg', '.jpeg', '.png')):
-                        await update.message.reply_photo(photo=open(final_path, 'rb'), write_timeout=300, read_timeout=300)
-                    elif final_path.endswith(('.mp4', '.mkv', '.avi')):
-                        await update.message.reply_video(video=open(final_path, 'rb'), write_timeout=300, read_timeout=300)
-                    elif final_path.endswith(('.mp3', '.m4a', '.wav', '.flac')):
-                        await update.message.reply_audio(audio=open(final_path, 'rb'), write_timeout=300, read_timeout=300)
-                    else:
-                        await update.message.reply_document(document=open(final_path, 'rb'), write_timeout=300, read_timeout=300)
-                except Exception as e:
-                    logger.error(f"Error sending file {final_path}: {e}")
-                    await update.message.reply_text(f"❌ Failed to upload {os.path.basename(final_path)}.")
             else:
-                await update.message.reply_text(f"⚠️ File is too large: {os.path.basename(final_path)} ({size:.2f}MB > {MAX_FILE_SIZE_MB}MB).")
-            
-            # Cleanup
-            cleanup_file(original_path)
-            if original_path != final_path:
-                cleanup_file(final_path)
-            
-            # If it was an instagram folder, we might want to clean that up too, 
-            # but our cleanup_file only handles files. 
-            # For simplicity in this script, we rely on the fact that instagram downloader 
-            # returns file paths. The folder might remain empty. 
-            # Ideally we'd clean the folder too.
-            
-        await status_msg.delete()
+                await status_msg.edit_text(
+                    "❌ رابط غير مدعوم. أدعم YouTube, Instagram, Twitter, Facebook, و TikTok.\n"
+                    "❌ Unsupported URL. I support YouTube, Instagram, Twitter, Facebook, and TikTok."
+                )
+                return
+
+            # Send files
+            await status_msg.edit_text("⬆️ جاري رفع الملف... | Uploading media...")
+
+            for file_path in files_to_send:
+                original_path = file_path
+                final_path = original_path
+
+                if WATERMARK_ENABLED:
+                    try:
+                        from watermark import apply_watermark
+                        await status_msg.edit_text("🖼️ Adding watermark...")
+                        watermarked_path = await apply_watermark(original_path, WATERMARK_TEXT)
+                        if watermarked_path and os.path.exists(watermarked_path):
+                            final_path = watermarked_path
+                        else:
+                            logger.warning(f"Watermarking failed for {original_path}. Sending original file.")
+                    except ImportError:
+                        logger.warning("Watermark module not available. Install moviepy to enable watermarks.")
+                    except Exception as e:
+                        logger.warning(f"Watermarking failed: {e}. Sending original file.")
+
+                is_valid, size = check_file_size(final_path)
+                if is_valid:
+                    try:
+                        if final_path.endswith(('.jpg', '.jpeg', '.png')):
+                            with open(final_path, 'rb') as f:
+                                await update.message.reply_photo(photo=f, write_timeout=300, read_timeout=300)
+                        elif final_path.endswith(('.mp4', '.mkv', '.avi')):
+                            with open(final_path, 'rb') as f:
+                                await update.message.reply_video(video=f, write_timeout=300, read_timeout=300)
+                        elif final_path.endswith(('.mp3', '.m4a', '.wav', '.flac')):
+                            with open(final_path, 'rb') as f:
+                                await update.message.reply_audio(audio=f, write_timeout=300, read_timeout=300)
+                        else:
+                            with open(final_path, 'rb') as f:
+                                await update.message.reply_document(document=f, write_timeout=300, read_timeout=300)
+                    except Exception as e:
+                        logger.error(f"Error sending file {final_path}: {e}")
+                        await update.message.reply_text(f"❌ Failed to upload {os.path.basename(final_path)}.")
+                else:
+                    await update.message.reply_text(
+                        f"⚠️ File is too large: {os.path.basename(final_path)} ({size:.2f}MB > {MAX_FILE_SIZE_MB}MB)."
+                    )
+
+                # Cleanup
+                cleanup_file(original_path)
+                if original_path != final_path:
+                    cleanup_file(final_path)
+
+            await status_msg.delete()
 
     except Exception as e:
         logger.error(f"Error processing URL {url}: {e}")

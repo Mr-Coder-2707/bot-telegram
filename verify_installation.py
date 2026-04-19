@@ -69,6 +69,28 @@ def check_packages():
     
     return all_installed
 
+
+def check_env_vars():
+    """Check required environment variables for running the bot."""
+    print("\n🔐 فحص المتغيرات | Checking environment variables...")
+
+    bot_token = (os.getenv('BOT_TOKEN') or '').strip()
+    cookies_txt = (os.getenv('COOKIES_TXT') or '').strip()
+
+    ok = True
+    if bot_token:
+        print("  ✅ BOT_TOKEN")
+    else:
+        print("  ❌ BOT_TOKEN - مطلوب لتشغيل البوت | Required to run the bot")
+        ok = False
+
+    if cookies_txt:
+        print("  ✅ COOKIES_TXT (اختياري) | Optional")
+    else:
+        print("  ⚠️  COOKIES_TXT (اختياري) | Optional")
+
+    return ok
+
 def check_files():
     """Check if all required files exist"""
     print("📁 فحص الملفات | Checking files...")
@@ -78,6 +100,9 @@ def check_files():
         'downloaders/music.py',
         'downloaders/__init__.py',
         'requirements.txt',
+    ]
+
+    optional_files = [
         '.env',
     ]
     
@@ -99,6 +124,14 @@ def check_files():
         else:
             print(f"    ❌ {file} - مفقود | Missing")
             all_exist = False
+
+    print("\n  ملفات اختيارية | Optional Files:")
+    for file in optional_files:
+        if os.path.exists(file):
+            size = os.path.getsize(file)
+            print(f"    ✅ {file} ({size:,} bytes)")
+        else:
+            print(f"    ⚠️  {file} - اختياري | Optional")
     
     print("\n  الملفات الموثقية | Documentation Files:")
     for file in documentation_files:
@@ -135,6 +168,7 @@ def print_summary(results):
         ("🐍 Python", results['python']),
         ("🎬 FFmpeg", results['ffmpeg']),
         ("📦 Packages", results['packages']),
+        ("🔐 Env Vars", results['env']),
         ("📁 Files", results['files']),
         ("🎵 Music Module", results['imports']),
     ]
@@ -169,6 +203,7 @@ def main():
         'python': check_python(),
         'ffmpeg': check_ffmpeg(),
         'packages': check_packages(),
+        'env': check_env_vars(),
         'files': check_files(),
         'imports': check_imports(),
     }

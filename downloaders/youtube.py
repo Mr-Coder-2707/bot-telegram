@@ -52,7 +52,9 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
                         progress_callback(downloaded, total)
 
         ydl_opts = get_ytdlp_opts({
-            'format': 'best[ext=mp4]/best',
+            # Production-friendly defaults (overridable via env)
+            'format': os.getenv('YTDLP_FORMAT', 'best'),
+            'merge_output_format': os.getenv('YTDLP_MERGE_FORMAT', 'mp4'),
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
             'progress_hooks': [ytdlp_progress],
         })

@@ -11,8 +11,12 @@
 - تم إضافة ملف `nixpacks.toml` لتحديد أمر التشغيل تلقائيًا: `python bot.py`.
 - لازم تضيف متغيرات البيئة في Railway (Variables) لأن ملف `.env` متجاهَل ولا يُرفع:
    - `BOT_TOKEN` (إجباري)
+   - `COOKIES_TXT` (اختياري) — محتوى cookies.txt أو مسار ملف cookies (لـ YouTube verification لو احتجت)
    - `WATERMARK_ENABLED` (اختياري: `true`/`false`)
    - `WATERMARK_TEXT` (اختياري)
+   - `MAX_CONCURRENT_DOWNLOADS` (اختياري) — افتراضي `2` لتقليل الضغط ومنع التهنيج
+   - `YTDLP_FORMAT` (اختياري) — افتراضي `best`
+   - `YTDLP_MERGE_FORMAT` (اختياري) — افتراضي `mp4`
 
 ## 🤖 نظرة عامة | Overview
 
