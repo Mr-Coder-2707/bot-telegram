@@ -54,21 +54,36 @@ def download_youtube_video(url, output_path="downloads", progress_callback=None)
         requested_format = os.getenv('YTDLP_FORMAT', 'best/bestvideo+bestaudio/best')
         merge_format = os.getenv('YTDLP_MERGE_FORMAT', 'mp4')
 
-        def _run_download(fmt: str):
+        def _run_download(fmt: str, ignoreerrors: bool = True):
             ydl_opts = get_ytdlp_opts({
                 'format': fmt,
                 'merge_output_format': merge_format,
-                'ignoreerrors': True,
+                'ignoreerrors': ignoreerrors,
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [ytdlp_progress],
             })
             logger.info(
-                f"yt-dlp format selected: {ydl_opts.get('format')} | merge_output_format: {ydl_opts.get('merge_output_format')}"
+                f"yt-dlp format selected: {ydl_opts.get('format')} | merge_output_format: {ydl_opts.get('merge_output_format')} | ignoreerrors: {ignoreerrors}"
             )
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 if not info:
-                    raise Exception("yt-dlp did not return video info (possibly ignored an error).")
+                    if ignoreerrors:
+                        logger.warning("yt-dlp did not return video info (possibly ignored an error). Retrying with strict mode (ignoreerrors=False, format=best)...")
+                        # Try strict mode as a last resort
+                        ydl_opts['format'] = 'best'
+                        ydl_opts['ignoreerrors'] = False
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                            info2 = ydl2.extract_info(url, download=True)
+                            if not info2:
+                                raise Exception("yt-dlp could not download the video.\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.\nIf the problem persists, the video may be private, deleted, or region-locked.")
+                            filename2 = ydl2.prepare_filename(info2)
+                            if not filename2 or not os.path.exists(filename2):
+                                raise Exception("Download did not produce an output file (strict mode).\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.")
+                            logger.info(f"yt-dlp download success (strict fallback): {filename2}")
+                            return filename2
+                    else:
+                        raise Exception("yt-dlp did not return video info (strict mode).\n\nتأكد من الرابط أو أن الفيديو ليس خاصًا أو محذوفًا.")
 
                 filename = ydl.prepare_filename(info)
                 if not filename or not os.path.exists(filename):
